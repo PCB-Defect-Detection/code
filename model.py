@@ -1,9 +1,9 @@
 import json
 import os
-from labelme import utils
 import numpy as np
 import glob
 import PIL.Image
+
 
 def labelme_to_coco(labelme_jsons, save_json_path):
     coco = {
@@ -22,14 +22,16 @@ def labelme_to_coco(labelme_jsons, save_json_path):
         with open(labelme_json, 'r') as f:
             data = json.load(f)
 
-        # Image
-        image_path = os.path.join(os.path.dirname(labelme_json), data['imagePath'])
-        image = PIL.Image.open(image_path)
+        # JSON 파일에서 이미지 크기 가져오기
+        width = data['imageWidth']
+        height = data['imageHeight']
+
+        # 이미지 정보 추가
         image_info = {
             "id": image_id,
             "file_name": data['imagePath'],
-            "width": image.height,
-            "height": image.width
+            "width": width,
+            "height": height
         }
         coco['images'].append(image_info)
 
@@ -47,7 +49,7 @@ def labelme_to_coco(labelme_jsons, save_json_path):
             points = shape['points']
             polygon = np.array(points).flatten().tolist()
 
-            # Calculate bounding box
+            # 바운딩 박스 계산
             min_x = min(p[0] for p in points)
             max_x = max(p[0] for p in points)
             min_y = min(p[1] for p in points)
@@ -70,7 +72,8 @@ def labelme_to_coco(labelme_jsons, save_json_path):
     with open(save_json_path, 'w') as f:
         json.dump(coco, f)
 
+
 # 모든 LabelMe JSON 파일을 변환
 labelme_jsons = glob.glob('C:\\Users\\jjh99\\PycharmProjects\\pcb\\pcb_image\\*.json')
-save_json_path = 'C:\\Users\\jjh99\\PycharmProjects\\pcb\\coco_format_1.json'
+save_json_path = 'C:\\Users\\jjh99\\PycharmProjects\\pcb\\coco_format_3.json'
 labelme_to_coco(labelme_jsons, save_json_path)
