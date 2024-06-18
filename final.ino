@@ -144,9 +144,10 @@ void loop() {
     }   
     // 카메라가 pcb기판검출을 완료하고 특정 메시지를 보내면 다시 시작
     if (!motor_running && Serial.readString() == "restart") {
+      Serial.println("yahoo");
       motor_running = true;
       motor_direction_forward = true;
-      //Serial.println("restart");
+      Serial.println("reset_belt");
     }   
     // 모터 실행
     if (motor_running) {
