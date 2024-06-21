@@ -55,7 +55,7 @@ void loop() {
      if(cmd.indexOf(" ") != -1){               // cmd에 띄어쓰기가 있으면 
       int split = cmd.indexOf(" ");
       if (cmd.substring(0,split) == "led"){
-        int led_run = cmd.substring(split+1).toInt();
+        led_run = cmd.substring(split+1).toInt();
       }
       if (cmd.substring(0,split) == "motor"){
         int speed = cmd.substring(split+1).toInt();
@@ -79,15 +79,18 @@ void loop() {
      }
     }
     unsigned long current_time = millis();   // unsigned: 양의 타입만 표시
-    unsigned long timer = timer + current_time;
+    unsigned long timer = current_time;
     Serial.print("timer ");
     Serial.println(timer/1000);
     int light = analogRead(A0);   // 조도센서
-    if (light > 150){
-      int ledLight = map(light,0,1023,0,led_run);
-
+    int ledLight = map(light,0,1023,0,led_run);
+    if (light >= 400){
       analogWrite(led_1,ledLight);
       analogWrite(led_2,ledLight);
+    }
+    else{
+      analogWrite(led_1,0);
+      analogWrite(led_2,0);
     }
 
     // 초음파 센서를 주기적으로 읽음
@@ -110,7 +113,7 @@ void loop() {
       }
     }   
     // 카메라가 pcb기판검출을 완료하고 특정 메시지를 보내면 다시 시작
-    if (!motor_running && Serial.readString() == "restart") {
+    if (!motor_running && Serial.available() && Serial.readString() == "restart") {
       Serial.println("yahoo");
       motor_running = true;
       motor_direction_forward = true;
@@ -125,5 +128,4 @@ void loop() {
         stepper.step(-STEPS_PER_REVOLUTION);
       }
     }
-  }
 }
