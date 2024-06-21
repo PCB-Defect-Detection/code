@@ -18,7 +18,6 @@ int TRIG1 = 7;
 int ECHO1 = 6;
 
 
-
 // 타이머 설정
 unsigned long previous_time = 0;
 const unsigned long check = 400; // 초음파 센서를 체크하는 주기
