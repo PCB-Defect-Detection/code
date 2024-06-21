@@ -43,7 +43,7 @@ import logging
 font_path = "C:/Windows/Fonts/malgun.ttf"  # 사용자의 시스템에 맞는 한글 폰트 경로로 설정
 font_name = font_manager.FontProperties(fname=font_path).get_name()
 rc('font', family=font_name)
-con = pymysql.connect(host="192.168.31.4",user="root1",password="0000",port=3306,db="pcb",charset='utf8')
+con = pymysql.connect(host="192.168.31.3",user="root1",password="0000",port=3306,db="pcb",charset='utf8')
 cur = con.cursor()
 
 py_serial = serial.Serial(
@@ -172,7 +172,7 @@ class MyWindow(QMainWindow):
 
     def check_login(self, user_id, user_pw):
         try:
-            conn = pymysql.connect(host='192.168.31.4', user='root1', password='0000', db='pcb', charset='utf8')
+            conn = pymysql.connect(host='192.168.31.3', user='root1', password='0000', db='pcb', charset='utf8')
             cur = conn.cursor()
             sql = "SELECT * FROM manager WHERE id = %s AND pw = %s"
             cur.execute(sql, (user_id, user_pw))
@@ -184,36 +184,55 @@ class MyWindow(QMainWindow):
             return False
 
     def btnClick(self):
+        con = pymysql.connect(host="192.168.31.3", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
+        cur = con.cursor()
         user_id = self.idtext.text()
         user_pw = self.pwtext.text()
 
         if self.check_login(user_id, user_pw):
+
             self.hide()
+
             self.ui_main_window = QMainWindow()
+
             self.ui = Ui_MainWindow()
+
             self.ui.setupUi(self.ui_main_window)
+
             self.ui_main_window.show()
-            time.sleep(1)
-            commend = "login"
-            py_serial.write(commend.encode())
-            time.sleep(2)
-            sql = "SELECT * FROM pcb.default_value"
-            cur.execute(sql)
-            default = cur.fetchall()[0]
-            commend = "led " + str(default[1])
-            py_serial.write(commend.encode())
-            time.sleep(2)
-            commend = "motor " + str(default[0])
-            py_serial.write(commend.encode())
+            QApplication.processEvents()  # 이벤트 루프 갱신
+
+            try:
+                time.sleep(1)
+                commend = "login"
+                py_serial.write(commend.encode())
+
+                time.sleep(2)
+                sql = "SELECT * FROM pcb.default_value"
+                cur.execute(sql)
+                default = cur.fetchall()[0]
+
+
+                commend = "led " + str(default[1])
+                py_serial.write(commend.encode())
+
+                time.sleep(2)
+                commend = "motor " + str(default[0])
+                py_serial.write(commend.encode())
+
+            except Exception as e:
+                print(f"Error: {e}")
         else:
             QMessageBox.warning(self, "로그인 실패", "비밀번호를 다시입력해주세요.")
             self.idtext.clear()
             self.pwtext.clear()
 
 
+
 class Ui_MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
         self.names = []
         self.shapes = []
         self.image_window = None
@@ -319,7 +338,7 @@ class Ui_MainWindow(QMainWindow):
         self.belt_control.currentTextChanged.connect(self.motor_control_combo)
         #
         self.belt_control.setObjectName(u"comboBox")
-        self.belt_control.setGeometry(QRect(600, 605, 211, 24))
+        self.belt_control.setGeometry(QRect(600, 655, 211, 24))
         self.pages.addTab(self.main, "")
 
 
@@ -486,9 +505,7 @@ class Ui_MainWindow(QMainWindow):
         self.update_bar.setGeometry(QRect(380,500,300,20))
         self.update_bar.setValue(0)
         self.update_btn.clicked.connect(self.run_scripts)
-
         self.horizontalLayout.addWidget(self.main_frame)
-
         self.horizontalLayout.setStretch(0, 2)
         self.horizontalLayout.setStretch(1, 8)
 
@@ -522,8 +539,11 @@ class Ui_MainWindow(QMainWindow):
         self.gridLayout.addWidget(self.frame, 0, 0, 1, 1)
 
         self.gridLayout.setRowStretch(0, 1)
+
         self.gridLayout.setRowStretch(1, 8)
+
         MainWindow.setCentralWidget(self.centralwidget)
+
         self.load_images()
 
         self.menubar = QMenuBar(MainWindow)
@@ -570,7 +590,7 @@ class Ui_MainWindow(QMainWindow):
 
     def show_graph(self, period):
 
-        con = pymysql.connect(host="192.168.31.4", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
+        con = pymysql.connect(host="192.168.31.3", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
         cur = con.cursor()
 
         if period == 'daily':
@@ -686,6 +706,7 @@ class Ui_MainWindow(QMainWindow):
         try:
             while True:
                 response = py_serial.readline()
+                print(response.decode())
                 # 구동시간
                 if response.decode().startswith("timer"):
                     value = int(response[:len(response) - 1].decode().split(" ")[1])
@@ -708,10 +729,9 @@ class Ui_MainWindow(QMainWindow):
                     if not self.capture_done and (current_time - self.last_capture_time > datetime.timedelta(
                             seconds=10)):  # 캡처가 완료되지 않았고 마지막 캡처 후 10초가 지난 경우
                         self.last_capture_time = current_time
-                        print(response.decode())
+
                         py_serial.write("stop".encode())
                         time.sleep(3)  # 캡처하기 전에 3초 지연
-                        print(self.thread.shapes)
                         self.capture_image(self.names, self.thread.shapes)
                         py_serial.write("restart".encode())
                         self.capture_done = True
@@ -895,18 +915,14 @@ class Ui_MainWindow(QMainWindow):
 
 
     def reset_and_load_images(self):
-
         self.current_page = 0
         self.load_images()
 
     def load_images(self):
-
-        con = pymysql.connect(host="192.168.31.4", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
+        con = pymysql.connect(host="192.168.31.3", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
         cur = con.cursor()
-
         selected_type = self.type.currentText()
         query = "SELECT image FROM faulty"
-
         if selected_type == "부품 파손":
             query += " WHERE faulty_type = 'break'"
         elif selected_type == "부품 누락":
@@ -915,10 +931,8 @@ class Ui_MainWindow(QMainWindow):
             query += " WHERE faulty_type = 'scratch'"
         elif selected_type == "정상 커패시터":
             query += " WHERE faulty_type = 'normal_cap'"
-
         offset = self.current_page * self.images_per_page
         query += f" ORDER BY detection_time DESC LIMIT {self.images_per_page} OFFSET {offset}"
-
         cur.execute(query)
         rows = cur.fetchall()
         con.close()
@@ -984,7 +998,6 @@ class Ui_MainWindow(QMainWindow):
 
 class video(QThread):
     change_pixmap_signal = pyqtSignal(QImage)
-
     def __init__(self, predictor, url, awb):
         super().__init__()
         self.predictor = predictor
