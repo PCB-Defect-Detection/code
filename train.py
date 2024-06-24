@@ -5,10 +5,15 @@ from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.data.datasets import register_coco_instances
 from detectron2.data import MetadataCatalog
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.modeling import build_model
+from detectron2.modeling.roi_heads import FastRCNNOutputLayers
+import torch.nn as nn
+import torch
 
 # 데이터셋 경로 설정
 base_dir = "C:\\Users\\jjh99\\PycharmProjects\\pcb"
-coco_json = os.path.join(base_dir, "coco_format_1.json")
+coco_json = os.path.join(base_dir, "coco_format_final.json")
 image_dir = os.path.join(base_dir, "pcb_image")
 
 # 데이터셋 등록
@@ -30,7 +35,7 @@ if __name__ == "__main__":
     # 등록된 데이터셋을 TRAIN에 추가
     cfg.DATASETS.TRAIN = ("my_dataset",)
     cfg.DATASETS.TEST = ()
-    cfg.DATALOADER.NUM_WORKERS = 4 # DataLoader 작업자 수
+    cfg.DATALOADER.NUM_WORKERS = 4  # DataLoader 작업자 수
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml")
     cfg.SOLVER.IMS_PER_BATCH = 2
     cfg.SOLVER.BASE_LR = 0.0001  # 학습률을 더 낮춤
@@ -47,6 +52,23 @@ if __name__ == "__main__":
     # 출력 디렉토리 설정
     cfg.OUTPUT_DIR = os.path.join(base_dir, "output")
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+
+    # 모델 빌드 및 가중치 로드
+    model = build_model(cfg)
+    DetectionCheckpointer(model).load(cfg.MODEL.WEIGHTS)  # 기존 가중치를 로드하지만, ROI 헤드는 무시
+
+    # ROI 헤드 재구성
+    input_shape = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNOutputLayers(cfg, input_shape)
+
+    # ROI 헤드의 가중치 재설정
+    def reset_cls_weights(predictor):
+        nn.init.normal_(predictor.cls_score.weight, std=0.01)
+        nn.init.constant_(predictor.cls_score.bias, 0)
+        nn.init.normal_(predictor.bbox_pred.weight, std=0.001)
+        nn.init.constant_(predictor.bbox_pred.bias, 0)
+
+    reset_cls_weights(model.roi_heads.box_predictor)
 
     # 트레이너 설정 및 훈련 시작
     trainer = DefaultTrainer(cfg)
