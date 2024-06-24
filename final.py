@@ -43,7 +43,7 @@ import logging
 font_path = "C:/Windows/Fonts/malgun.ttf"  # 사용자의 시스템에 맞는 한글 폰트 경로로 설정
 font_name = font_manager.FontProperties(fname=font_path).get_name()
 rc('font', family=font_name)
-con = pymysql.connect(host="192.168.31.3",user="root1",password="0000",port=3306,db="pcb",charset='utf8')
+con = pymysql.connect(host="192.168.31.7",user="root1",password="0000",port=3306,db="pcb",charset='utf8')
 cur = con.cursor()
 
 py_serial = serial.Serial(
@@ -51,7 +51,7 @@ py_serial = serial.Serial(
     baudrate=9600,
 )
 base_dir = "C:\\Users\\jjh99\\PycharmProjects\\pcb"
-coco_json = os.path.join(base_dir, "coco_format_1.json")
+coco_json = os.path.join(base_dir, "coco_format_final.json")
 image_dir = os.path.join(base_dir, "pcb_image")
 
 # COCO JSON 파일에서 카테고리 이름 읽기
@@ -66,7 +66,31 @@ register_coco_instances("my_dataset", {}, coco_json, image_dir)
 MetadataCatalog.get("my_dataset").thing_classes = categories
 
 # Config 설정
+class TrainingThread(QThread):
+    update_progress = pyqtSignal(int)
+    training_complete = pyqtSignal()
+    training_error = pyqtSignal(str)
 
+    def run(self):
+        try:
+            # 모델 스크립트 실행
+            subprocess.run(['python', 'model.py'], check=True)
+            self.update_progress.emit(40)
+
+            time.sleep(2)  # 메모리 안정화를 위해 대기
+
+            # 데이터셋 등록 스크립트 실행
+            subprocess.run(['python', 'register_datasets.py'], check=True)
+            self.update_progress.emit(60)
+
+            time.sleep(2)  # 메모리 안정화를 위해 대기
+
+            # 학습 스크립트 실행
+            subprocess.run(['python', 'train.py'], check=True)
+            self.update_progress.emit(100)
+            self.training_complete.emit()
+        except subprocess.CalledProcessError as e:
+            self.training_error.emit(str(e))
 
 # ESP32 URL
 class ClickableLabel(QLabel):
@@ -172,7 +196,7 @@ class MyWindow(QMainWindow):
 
     def check_login(self, user_id, user_pw):
         try:
-            conn = pymysql.connect(host='192.168.31.3', user='root1', password='0000', db='pcb', charset='utf8')
+            conn = pymysql.connect(host='192.168.31.7', user='root1', password='0000', db='pcb', charset='utf8')
             cur = conn.cursor()
             sql = "SELECT * FROM manager WHERE id = %s AND pw = %s"
             cur.execute(sql, (user_id, user_pw))
@@ -184,7 +208,7 @@ class MyWindow(QMainWindow):
             return False
 
     def btnClick(self):
-        con = pymysql.connect(host="192.168.31.3", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
+        con = pymysql.connect(host="192.168.31.7", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
         cur = con.cursor()
         user_id = self.idtext.text()
         user_pw = self.pwtext.text()
@@ -334,9 +358,9 @@ class Ui_MainWindow(QMainWindow):
         self.belt_control.addItem("정지")
         self.belt_control.addItem("뒤로")
         self.belt_control.addItem("재시작")
-        #
+
         self.belt_control.currentTextChanged.connect(self.motor_control_combo)
-        #
+
         self.belt_control.setObjectName(u"comboBox")
         self.belt_control.setGeometry(QRect(600, 655, 211, 24))
         self.pages.addTab(self.main, "")
@@ -559,28 +583,18 @@ class Ui_MainWindow(QMainWindow):
         QMetaObject.connectSlotsByName(MainWindow)
 
     def run_scripts(self):
-        self.update_bar.setValue(20)
-        QApplication.processEvents()  # To update the UI immediately
+        self.training_thread = TrainingThread()
+        self.training_thread.update_progress.connect(self.update_bar.setValue)
+        self.training_thread.training_complete.connect(self.on_training_complete)
+        self.training_thread.training_error.connect(self.on_training_error)
+        self.training_thread.start()
 
-        def run_in_thread():
-            try:
-                subprocess.run(['python', 'model.py'], check=True)
-                self.update_bar.setValue(40)
-                QApplication.processEvents()  # To update the UI immediately
+    def on_training_complete(self):
+        QMessageBox.information(self, "완료", "모든 스크립트가 성공적으로 실행되었습니다!")
 
-                subprocess.run(['python', 'register_datasets.py'], check=True)
-                self.update_bar.setValue(60)
-                QApplication.processEvents()  # To update the UI immediately
-
-                subprocess.run(['python', 'train.py'], check=True)
-                self.update_bar.setValue(100)
-                QMessageBox.information(self, "완료", "모든 스크립트가 성공적으로 실행되었습니다!")
-            except subprocess.CalledProcessError as e:
-                QMessageBox.critical(self, "오류", f"스크립트 실행 중 오류가 발생했습니다: {e}")
-                self.update_bar.setValue(0)
-
-        # 백그라운드 스레드에서 실행
-        threading.Thread(target=run_in_thread).start()
+    def on_training_error(self, error):
+        QMessageBox.critical(self, "오류", f"스크립트 실행 중 오류가 발생했습니다: {error}")
+        self.update_bar.setValue(0)
 
     def show_daily_graph(self):
         self.show_graph('daily')
@@ -590,7 +604,7 @@ class Ui_MainWindow(QMainWindow):
 
     def show_graph(self, period):
 
-        con = pymysql.connect(host="192.168.31.3", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
+        con = pymysql.connect(host="192.168.31.7", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
         cur = con.cursor()
 
         if period == 'daily':
@@ -620,7 +634,7 @@ class Ui_MainWindow(QMainWindow):
         rows = cur.fetchall()
         con.close()
 
-        dates = [row[0].strftime('%Y년 %m월 %d일') if period == 'daily' else row[0] + "월" for row in rows]
+        dates = [row[0].strftime('%m월 %d일') if period == 'daily' else row[0] + "월" for row in rows]
         break_counts = [row[1] for row in rows]
         omission_counts = [row[2] for row in rows]
         scratch_counts = [row[3] for row in rows]
@@ -706,7 +720,6 @@ class Ui_MainWindow(QMainWindow):
         try:
             while True:
                 response = py_serial.readline()
-                print(response.decode())
                 # 구동시간
                 if response.decode().startswith("timer"):
                     value = int(response[:len(response) - 1].decode().split(" ")[1])
@@ -919,7 +932,7 @@ class Ui_MainWindow(QMainWindow):
         self.load_images()
 
     def load_images(self):
-        con = pymysql.connect(host="192.168.31.3", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
+        con = pymysql.connect(host="192.168.31.7", user="root1", password="0000", port=3306, db="pcb", charset='utf8')
         cur = con.cursor()
         selected_type = self.type.currentText()
         query = "SELECT image FROM faulty"
@@ -1023,7 +1036,7 @@ class video(QThread):
 
     def run(self):
         self.set_resolution(self.url, index=8)
-        cap = cv2.VideoCapture(self.url + ":81/stream")
+        cap = cv2.VideoCapture(self.url + ":81/stream") #self.url + ":81/stream"
         while self.running:
             if cap.isOpened():
                 ret, frame = cap.read()
