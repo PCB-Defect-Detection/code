@@ -75,5 +75,5 @@ def labelme_to_coco(labelme_jsons, save_json_path):
 
 # 모든 LabelMe JSON 파일을 변환
 labelme_jsons = glob.glob('C:\\Users\\jjh99\\PycharmProjects\\pcb\\pcb_image\\*.json')
-save_json_path = 'C:\\Users\\jjh99\\PycharmProjects\\pcb\\coco_format_3.json'
+save_json_path = 'C:\\Users\\jjh99\\PycharmProjects\\pcb\\coco_format_final.json'
 labelme_to_coco(labelme_jsons, save_json_path)
